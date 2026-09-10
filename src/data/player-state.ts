@@ -47,5 +47,41 @@ export function receiveEvidence(
     state.receivedEvidence.push(evidenceId);
   }
 
+  const progression: Record<string, string> = {
+    E1: "suspect",
+    E2: "timeline",
+    E3: "mechanism",
+    E4: "reconstruction",
+    E5: "false_discovery",
+    E6: "final_reconstruction",
+    E7: "final_reconstruction"
+  };
+
+  const stepOrder = [
+    "incident",
+    "suspect",
+    "timeline",
+    "mechanism",
+    "reconstruction",
+    "false_discovery",
+    "final_reconstruction"
+  ];
+
+  const nextStep = progression[evidenceId];
+
+  if (nextStep) {
+    const currentIndex = stepOrder.indexOf(state.currentStep);
+    const nextIndex = stepOrder.indexOf(nextStep);
+
+    if (nextIndex > currentIndex) {
+      state.currentStep = nextStep;
+    }
+  }
+
+  if (state.receivedEvidence.includes("E7")) {
+    state.currentStep = "final_reconstruction";
+    state.completed = true;
+  }
+
   return state;
 }

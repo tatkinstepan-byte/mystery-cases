@@ -1,49 +1,68 @@
-import http from "node:http";
+import { createServer } from "node:http";
 import { getCase } from "./data/cases.js";
 
-const PORT = 3000;
+type ServerResponse = import("node:http").ServerResponse;
 
-const server = http.createServer((req, res) => {
-  if (!req.url) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Bad request" }));
-    return;
+function sendJson(
+  res: ServerResponse,
+  status: number,
+  body: unknown
+) {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8"
+  });
+
+  res.end(JSON.stringify(body));
+}
+
+const PORT = Number(process.env.PORT ?? 3000);
+
+const server = createServer((req, res) => {
+  if (!req.url || !req.method) {
+    return sendJson(res, 400, {
+      error: "Bad request"
+    });
   }
 
-  const match = req.url.match(/^\/api\/cases\/([^/]+)$/);
+  const match = req.url.match(/^\/api\/cases\/([^/?]+)$/);
 
-  if (req.method === "GET" && match) {
-    const caseId = decodeURIComponent(match[1]);
-
-    if (!req.headers.authorization) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Unauthorized" }));
-      return;
-    }
-
-    const caseData = getCase(caseId);
-
-    if (!caseData) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Case not found" }));
-      return;
-    }
-
-    if (caseData.status === "locked") {
-      res.writeHead(403, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Case locked" }));
-      return;
-    }
-
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(caseData));
-    return;
+  if (req.method !== "GET" || !match) {
+    return sendJson(res, 404, {
+      error: "Not found"
+    });
   }
 
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "Not found" }));
+  const caseId = match[1];
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return sendJson(res, 401, {
+      error: "Unauthorized"
+    });
+  }
+
+  const caseRecord = getCase(caseId);
+
+  if (!caseRecord) {
+    return sendJson(res, 404, {
+      error: "Case not found"
+    });
+  }
+
+  if (caseRecord.status !== "unlocked") {
+    return sendJson(res, 403, {
+      error: "Case locked"
+    });
+  }
+
+  return sendJson(res, 200, {
+    case: {
+      id: caseRecord.id,
+      title: caseRecord.title
+    }
+  });
 });
 
 server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Mystery Cases API running on port ${PORT}`);
 });

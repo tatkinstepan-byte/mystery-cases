@@ -130,3 +130,37 @@ export function completeFinalReconstruction(
 
   return state;
 }
+
+
+export function completeCase(
+  userId: string,
+  caseId: string
+): PlayerCaseState | null {
+  const state = getOrCreatePlayerCaseState(userId, caseId);
+
+  if (
+    !state.receivedEvidence.includes("E1") ||
+    !state.receivedEvidence.includes("E2") ||
+    !state.receivedEvidence.includes("E3") ||
+    !state.receivedEvidence.includes("E4") ||
+    !state.receivedEvidence.includes("E5")
+  ) {
+    return null;
+  }
+
+  if (!state.falseDiscoveryCompleted) {
+    return null;
+  }
+
+  if (!state.finalReconstructionAvailable) {
+    return null;
+  }
+
+  if (!state.completed) {
+    return null;
+  }
+
+  state.completed = true;
+
+  return state;
+}

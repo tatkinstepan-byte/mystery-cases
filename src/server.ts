@@ -3,7 +3,13 @@ import { getCase } from "./data/cases.js";
 import { hasEntitlement } from "./data/entitlements.js";
 import { getUserIdentityFromHeaders } from "./auth.js";
 import { getEvidence } from "./data/evidence.js";
-import { getOrCreatePlayerCaseState, receiveEvidence, completeFalseDiscovery, completeFinalReconstruction } from "./data/player-state.js";
+import {
+  getOrCreatePlayerCaseState,
+  receiveEvidence,
+  completeFalseDiscovery,
+  completeFinalReconstruction,
+  completeCase
+} from "./data/player-state.js";
 import { validateFinalReconstruction } from "./data/final-reconstruction.js";
 
 type ServerResponse = import("node:http").ServerResponse;
@@ -52,6 +58,58 @@ const server = createServer(async (req, res) => {
   const caseMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)$/
   );
+
+  const completeMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)\/complete$/
+  );
+
+  if (
+    completeMatch &&
+    req.method === "POST"
+  ) {
+    const caseId = completeMatch[1];
+
+    const identity = getUserIdentityFromHeaders(req.headers);
+
+    if (!identity) {
+      return sendJson(res, 401, {
+        error: "Unauthorized"
+      });
+    }
+
+    const caseRecord = getCase(caseId);
+
+    if (!caseRecord) {
+      return sendJson(res, 404, {
+        error: "Case not found"
+      });
+    }
+
+    if (
+      caseRecord.status !== "unlocked" ||
+      !hasEntitlement(identity.userId, caseId)
+    ) {
+      return sendJson(res, 403, {
+        error: "Case locked"
+      });
+    }
+
+    const state = completeCase(
+      identity.userId,
+      caseId
+    );
+
+    if (!state) {
+      return sendJson(res, 409, {
+        error: "Completion prerequisites not satisfied"
+      });
+    }
+
+    return sendJson(res, 200, {
+      result: "completed",
+      state
+    });
+  }
 
   if (
     finalReconstructionMatch &&

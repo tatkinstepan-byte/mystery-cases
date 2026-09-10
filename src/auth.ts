@@ -1,8 +1,12 @@
 import type { IncomingHttpHeaders } from "node:http";
 
-export function getUserIdFromHeaders(
-  headers: IncomingHttpHeaders
-): string | undefined {
+export type UserIdentity = {
+  userId: string;
+};
+
+export function getUserIdentityFromHeaders(
+  headers: IncomingHttpHeaders,
+): UserIdentity | undefined {
   const authorization = headers.authorization;
 
   if (!authorization) {
@@ -15,5 +19,7 @@ export function getUserIdFromHeaders(
     return undefined;
   }
 
-  return token;
+  return {
+    userId: token,
+  };
 }

@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { getCase } from "./data/cases.js";
 import { hasEntitlement } from "./data/entitlements.js";
-import { getUserIdFromHeaders } from "./auth.js";
+import { getUserIdentityFromHeaders } from "./auth.js";
 
 type ServerResponse = import("node:http").ServerResponse;
 
@@ -36,9 +36,9 @@ const server = createServer((req, res) => {
 
   const caseId = match[1];
 
-  const userId = getUserIdFromHeaders(req.headers);
+  const identity = getUserIdentityFromHeaders(req.headers);
 
-  if (!userId) {
+  if (!identity) {
     return sendJson(res, 401, {
       error: "Unauthorized"
     });
@@ -54,7 +54,7 @@ const server = createServer((req, res) => {
 
   if (
     caseRecord.status !== "unlocked" ||
-    !hasEntitlement(userId, caseId)
+    !hasEntitlement(identity.userId, caseId)
   ) {
     return sendJson(res, 403, {
       error: "Case locked"

@@ -3,7 +3,7 @@ import { getCase } from "./data/cases.js";
 import { hasEntitlement } from "./data/entitlements.js";
 import { getUserIdentityFromHeaders } from "./auth.js";
 import { getEvidence } from "./data/evidence.js";
-import { getOrCreatePlayerCaseState } from "./data/player-state.js";
+import { getOrCreatePlayerCaseState, receiveEvidence } from "./data/player-state.js";
 
 type ServerResponse = import("node:http").ServerResponse;
 
@@ -28,6 +28,10 @@ const server = createServer((req, res) => {
     });
   }
 
+  const receiveEvidenceMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)\/evidence\/([^/?]+)\/receive$/
+  );
+
   const stateMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)\/state$/
   );
@@ -39,6 +43,57 @@ const server = createServer((req, res) => {
   const caseMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)$/
   );
+
+  if (
+    receiveEvidenceMatch &&
+    req.method === "POST"
+  ) {
+    const caseId = receiveEvidenceMatch[1];
+    const evidenceId = receiveEvidenceMatch[2];
+
+    const identity = getUserIdentityFromHeaders(req.headers);
+
+    if (!identity) {
+      return sendJson(res, 401, {
+        error: "Unauthorized"
+      });
+    }
+
+    const caseRecord = getCase(caseId);
+
+    if (!caseRecord) {
+      return sendJson(res, 404, {
+        error: "Case not found"
+      });
+    }
+
+    if (
+      caseRecord.status !== "unlocked" ||
+      !hasEntitlement(identity.userId, caseId)
+    ) {
+      return sendJson(res, 403, {
+        error: "Case locked"
+      });
+    }
+
+    const evidence = getEvidence(caseId, evidenceId);
+
+    if (!evidence) {
+      return sendJson(res, 404, {
+        error: "Evidence not found"
+      });
+    }
+
+    const state = receiveEvidence(
+      identity.userId,
+      caseId,
+      evidenceId
+    );
+
+    return sendJson(res, 200, {
+      state
+    });
+  }
 
   if (req.method !== "GET") {
     return sendJson(res, 404, {

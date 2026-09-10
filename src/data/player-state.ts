@@ -34,3 +34,18 @@ export function getOrCreatePlayerCaseState(
 
   return initialState;
 }
+
+
+export function receiveEvidence(
+  userId: string,
+  caseId: string,
+  evidenceId: string
+): PlayerCaseState {
+  const state = getOrCreatePlayerCaseState(userId, caseId);
+
+  if (!state.receivedEvidence.includes(evidenceId)) {
+    state.receivedEvidence.push(evidenceId);
+  }
+
+  return state;
+}

@@ -3,7 +3,7 @@ import { getCase } from "./data/cases.js";
 import { hasEntitlement } from "./data/entitlements.js";
 import { getUserIdentityFromHeaders } from "./auth.js";
 import { getEvidence } from "./data/evidence.js";
-import { getOrCreatePlayerCaseState, receiveEvidence } from "./data/player-state.js";
+import {  getOrCreatePlayerCaseState,  receiveEvidence,  completeFalseDiscovery} from "./data/player-state.js";
 
 type ServerResponse = import("node:http").ServerResponse;
 
@@ -32,6 +32,10 @@ const server = createServer((req, res) => {
     /^\/api\/cases\/([^/?]+)\/evidence\/([^/?]+)\/receive$/
   );
 
+  const falseDiscoveryMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)\/false-discovery$/
+  );
+
   const stateMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)\/state$/
   );
@@ -43,6 +47,68 @@ const server = createServer((req, res) => {
   const caseMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)$/
   );
+
+  if (
+    falseDiscoveryMatch &&
+    req.method === "POST"
+  ) {
+    const caseId = falseDiscoveryMatch[1];
+
+    const identity = getUserIdentityFromHeaders(req.headers);
+
+    if (!identity) {
+      return sendJson(res, 401, {
+        error: "Unauthorized"
+      });
+    }
+
+    const caseRecord = getCase(caseId);
+
+    if (!caseRecord) {
+      return sendJson(res, 404, {
+        error: "Case not found"
+      });
+    }
+
+    if (
+      caseRecord.status !== "unlocked" ||
+      !hasEntitlement(identity.userId, caseId)
+    ) {
+      return sendJson(res, 403, {
+        error: "Case locked"
+      });
+    }
+
+    const state = getOrCreatePlayerCaseState(
+      identity.userId,
+      caseId
+    );
+
+    if (
+      !state.receivedEvidence.includes("E5") ||
+      state.currentStep !== "false_discovery"
+    ) {
+      return sendJson(res, 409, {
+        error: "False Discovery unavailable"
+      });
+    }
+
+    const updatedState = completeFalseDiscovery(
+      identity.userId,
+      caseId
+    );
+
+    if (!updatedState) {
+      return sendJson(res, 409, {
+        error: "False Discovery unavailable"
+      });
+    }
+
+    return sendJson(res, 200, {
+      result: "false_discovery_resolved",
+      state: updatedState
+    });
+  }
 
   if (
     receiveEvidenceMatch &&

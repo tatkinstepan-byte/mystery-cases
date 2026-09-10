@@ -2,6 +2,8 @@ export type PlayerCaseState = {
   unlocked: boolean;
   receivedEvidence: string[];
   currentStep: string;
+  falseDiscoveryCompleted: boolean;
+  finalReconstructionAvailable: boolean;
   completed: boolean;
 };
 
@@ -27,6 +29,8 @@ export function getOrCreatePlayerCaseState(
     unlocked: true,
     receivedEvidence: [],
     currentStep: "incident",
+    falseDiscoveryCompleted: false,
+    finalReconstructionAvailable: false,
     completed: false
   };
 
@@ -78,10 +82,26 @@ export function receiveEvidence(
     }
   }
 
-  if (state.receivedEvidence.includes("E7")) {
-    state.currentStep = "final_reconstruction";
-    state.completed = true;
+  return state;
+}
+
+export function completeFalseDiscovery(
+  userId: string,
+  caseId: string
+): PlayerCaseState | null {
+  const state = getOrCreatePlayerCaseState(userId, caseId);
+
+  if (!state.receivedEvidence.includes("E5")) {
+    return null;
   }
+
+  if (state.currentStep !== "false_discovery") {
+    return null;
+  }
+
+  state.falseDiscoveryCompleted = true;
+  state.finalReconstructionAvailable = true;
+  state.currentStep = "final_reconstruction";
 
   return state;
 }

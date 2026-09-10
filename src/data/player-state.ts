@@ -156,10 +156,6 @@ export function completeCase(
     return null;
   }
 
-  if (!state.completed) {
-    return null;
-  }
-
   state.completed = true;
 
   return state;

@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import { getCase } from "./data/cases.js";
 import { hasEntitlement } from "./data/entitlements.js";
 import { getUserIdentityFromHeaders } from "./auth.js";
+import { getEvidence } from "./data/evidence.js";
+import { getOrCreatePlayerCaseState } from "./data/player-state.js";
 
 type ServerResponse = import("node:http").ServerResponse;
 
@@ -26,21 +28,40 @@ const server = createServer((req, res) => {
     });
   }
 
-  const match = req.url.match(/^\/api\/cases\/([^/?]+)$/);
+  const stateMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)\/state$/
+  );
 
-  if (req.method !== "GET" || !match) {
+  const evidenceMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)\/evidence\/([^/?]+)$/
+  );
+
+  const caseMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)$/
+  );
+
+  if (req.method !== "GET") {
     return sendJson(res, 404, {
       error: "Not found"
     });
   }
-
-  const caseId = match[1];
 
   const identity = getUserIdentityFromHeaders(req.headers);
 
   if (!identity) {
     return sendJson(res, 401, {
       error: "Unauthorized"
+    });
+  }
+
+  const caseId =
+    stateMatch?.[1] ??
+    evidenceMatch?.[1] ??
+    caseMatch?.[1];
+
+  if (!caseId) {
+    return sendJson(res, 404, {
+      error: "Not found"
     });
   }
 
@@ -61,11 +82,43 @@ const server = createServer((req, res) => {
     });
   }
 
-  return sendJson(res, 200, {
-    case: {
-      id: caseRecord.id,
-      title: caseRecord.title
+  if (stateMatch) {
+    const state = getOrCreatePlayerCaseState(
+      identity.userId,
+      caseId
+    );
+
+    return sendJson(res, 200, {
+      state
+    });
+  }
+
+  if (evidenceMatch) {
+    const evidenceId = evidenceMatch[2];
+    const evidence = getEvidence(caseId, evidenceId);
+
+    if (!evidence || evidence.caseId !== caseId) {
+      return sendJson(res, 404, {
+        error: "Evidence not found"
+      });
     }
+
+    return sendJson(res, 200, {
+      evidence
+    });
+  }
+
+  if (caseMatch) {
+    return sendJson(res, 200, {
+      case: {
+        id: caseRecord.id,
+        title: caseRecord.title
+      }
+    });
+  }
+
+  return sendJson(res, 404, {
+    error: "Not found"
   });
 });
 

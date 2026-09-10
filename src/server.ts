@@ -3,7 +3,8 @@ import { getCase } from "./data/cases.js";
 import { hasEntitlement } from "./data/entitlements.js";
 import { getUserIdentityFromHeaders } from "./auth.js";
 import { getEvidence } from "./data/evidence.js";
-import {  getOrCreatePlayerCaseState,  receiveEvidence,  completeFalseDiscovery} from "./data/player-state.js";
+import { getOrCreatePlayerCaseState, receiveEvidence, completeFalseDiscovery, completeFinalReconstruction } from "./data/player-state.js";
+import { validateFinalReconstruction } from "./data/final-reconstruction.js";
 
 type ServerResponse = import("node:http").ServerResponse;
 
@@ -21,7 +22,7 @@ function sendJson(
 
 const PORT = Number(process.env.PORT ?? 3000);
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
   if (!req.url || !req.method) {
     return sendJson(res, 400, {
       error: "Bad request"
@@ -36,6 +37,10 @@ const server = createServer((req, res) => {
     /^\/api\/cases\/([^/?]+)\/false-discovery$/
   );
 
+  const finalReconstructionMatch = req.url.match(
+    /^\/api\/cases\/([^/?]+)\/final-reconstruction$/
+  );
+
   const stateMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)\/state$/
   );
@@ -47,6 +52,97 @@ const server = createServer((req, res) => {
   const caseMatch = req.url.match(
     /^\/api\/cases\/([^/?]+)$/
   );
+
+  if (
+    finalReconstructionMatch &&
+    req.method === "POST"
+  ) {
+    const caseId = finalReconstructionMatch[1];
+
+    const identity = getUserIdentityFromHeaders(req.headers);
+
+    if (!identity) {
+      return sendJson(res, 401, {
+        error: "Unauthorized"
+      });
+    }
+
+    const caseRecord = getCase(caseId);
+
+    if (!caseRecord) {
+      return sendJson(res, 404, {
+        error: "Case not found"
+      });
+    }
+
+    if (
+      caseRecord.status !== "unlocked" ||
+      !hasEntitlement(identity.userId, caseId)
+    ) {
+      return sendJson(res, 403, {
+        error: "Case locked"
+      });
+    }
+
+    const state = getOrCreatePlayerCaseState(
+      identity.userId,
+      caseId
+    );
+
+    if (
+      !state.falseDiscoveryCompleted ||
+      !state.finalReconstructionAvailable
+    ) {
+      return sendJson(res, 409, {
+        error: "Final Reconstruction unavailable"
+      });
+    }
+
+    let body = "";
+
+    try {
+      for await (const chunk of req) {
+        body += chunk.toString();
+      }
+    } catch {
+      return sendJson(res, 400, {
+        error: "Invalid request body"
+      });
+    }
+
+    let input: unknown;
+
+    try {
+      input = JSON.parse(body);
+    } catch {
+      return sendJson(res, 400, {
+        error: "Invalid JSON"
+      });
+    }
+
+    if (!validateFinalReconstruction(input)) {
+      return sendJson(res, 200, {
+        result: "incorrect",
+        state
+      });
+    }
+
+    const updatedState = completeFinalReconstruction(
+      identity.userId,
+      caseId
+    );
+
+    if (!updatedState) {
+      return sendJson(res, 409, {
+        error: "Final Reconstruction unavailable"
+      });
+    }
+
+    return sendJson(res, 200, {
+      result: "correct",
+      state: updatedState
+    });
+  }
 
   if (
     falseDiscoveryMatch &&

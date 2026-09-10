@@ -105,3 +105,28 @@ export function completeFalseDiscovery(
 
   return state;
 }
+
+
+export function completeFinalReconstruction(
+  userId: string,
+  caseId: string
+): PlayerCaseState | null {
+  const state = getOrCreatePlayerCaseState(userId, caseId);
+
+  if (!state.falseDiscoveryCompleted) {
+    return null;
+  }
+
+  if (!state.finalReconstructionAvailable) {
+    return null;
+  }
+
+  if (state.completed) {
+    return state;
+  }
+
+  state.completed = true;
+  state.currentStep = "final_reconstruction";
+
+  return state;
+}

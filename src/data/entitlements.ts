@@ -60,6 +60,12 @@ export function grantCaseEntitlement(
     );
   }
 
+  const existing = entitlements.get(key(userId, caseId));
+
+  if (existing) {
+    return existing;
+  }
+
   const entitlement: PaymentEntitlement = {
     userId,
     caseId,

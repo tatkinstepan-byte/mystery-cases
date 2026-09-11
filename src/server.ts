@@ -97,12 +97,35 @@ const server = createServer(async (req, res) => {
       });
     }
 
-    const response = buildTelegramResponse(command);
+    let access: "locked" | "unlocked" | undefined;
+
+    if (command.type === "case" && command.caseId) {
+      const caseRecord = getCase(command.caseId);
+
+      if (!caseRecord) {
+        return sendJson(res, 404, {
+          error: "Case not found"
+        });
+      }
+
+      access = hasEntitlement(
+        command.userId,
+        command.caseId
+      )
+        ? "unlocked"
+        : "locked";
+    }
+
+    const response = buildTelegramResponse(
+      command,
+      access
+    );
 
     return sendJson(res, 200, {
       ok: true,
       handled: true,
       command: command.type,
+      access,
       response
     });
   }

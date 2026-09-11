@@ -142,6 +142,7 @@ export function parseTelegramUpdate(
 
 export function buildTelegramResponse(
   command: TelegramCommand,
+  access?: "locked" | "unlocked",
 ): {
   text: string;
   parseMode?: "HTML";
@@ -169,11 +170,25 @@ export function buildTelegramResponse(
       };
     }
 
+    if (
+      command.caseId === "last-message" &&
+      access === "unlocked"
+    ) {
+      return {
+        text:
+          "<b>Последнее сообщение</b>\n\n" +
+          "Доступ к CASE открыт.\n\n" +
+          "Следующий шаг — открыть расследование.",
+        parseMode: "HTML",
+      };
+    }
+
     return {
       text:
         "<b>Последнее сообщение</b>\n\n" +
-        "CASE найден.\n\n" +
-        "Следующий шаг — открыть расследование.",
+        "<b>Preview</b>\n\n" +
+        "Тебя ждёт реальное расследование, где нужно восстановить ход событий по уликам.\n\n" +
+        "Полный доступ к расследованию закрыт.",
       parseMode: "HTML",
     };
   }

@@ -98,3 +98,54 @@ export async function sendTelegramInvoice(
 
   return data;
 }
+
+export type TelegramAnswerPreCheckoutResult = {
+  ok: boolean;
+  result?: unknown;
+  description?: string;
+};
+
+export async function answerTelegramPreCheckoutQuery(
+  preCheckoutQueryId: string,
+  ok: boolean,
+  errorMessage?: string
+): Promise<TelegramAnswerPreCheckoutResult> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN is not configured");
+  }
+
+  if (!preCheckoutQueryId) {
+    throw new Error("PRE_CHECKOUT_QUERY_ID is required");
+  }
+
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/answerPreCheckoutQuery`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        pre_checkout_query_id: preCheckoutQueryId,
+        ok,
+        ...(errorMessage
+          ? { error_message: errorMessage }
+          : {})
+      })
+    }
+  );
+
+  const data =
+    (await response.json()) as TelegramAnswerPreCheckoutResult;
+
+  if (!response.ok || !data.ok) {
+    throw new Error(
+      data.description ??
+        "Telegram answerPreCheckoutQuery failed"
+    );
+  }
+
+  return data;
+}

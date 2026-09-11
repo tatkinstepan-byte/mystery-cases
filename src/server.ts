@@ -11,6 +11,11 @@ import {
   completeCase
 } from "./data/player-state.js";
 import { validateFinalReconstruction } from "./data/final-reconstruction.js";
+import {
+  validateTelegramWebhookSecret,
+  parseTelegramUpdate,
+  buildTelegramResponse
+} from "./telegram/bot.js";
 
 type ServerResponse = import("node:http").ServerResponse;
 
@@ -32,6 +37,73 @@ const server = createServer(async (req, res) => {
   if (!req.url || !req.method) {
     return sendJson(res, 400, {
       error: "Bad request"
+    });
+  }
+
+
+  const telegramWebhookMatch = req.url.match(
+    /^\/api\/telegram\/webhook$/
+  );
+
+  if (
+    telegramWebhookMatch &&
+    req.method === "POST"
+  ) {
+    if (!validateTelegramWebhookSecret(req.headers)) {
+      return sendJson(res, 401, {
+        error: "Unauthorized"
+      });
+    }
+
+    let body = "";
+
+    try {
+      for await (const chunk of req) {
+        body += chunk.toString();
+      }
+    } catch {
+      return sendJson(res, 400, {
+        error: "Invalid request body"
+      });
+    }
+
+    let update: unknown;
+
+    try {
+      update = JSON.parse(body);
+    } catch {
+      return sendJson(res, 400, {
+        error: "Invalid JSON"
+      });
+    }
+
+    if (
+      typeof update !== "object" ||
+      update === null
+    ) {
+      return sendJson(res, 400, {
+        error: "Invalid Telegram update"
+      });
+    }
+
+    const command = parseTelegramUpdate(
+      update as Parameters<typeof parseTelegramUpdate>[0]
+    );
+
+    if (!command) {
+      return sendJson(res, 200, {
+        ok: true,
+        handled: false
+      });
+    }
+
+    const response = buildTelegramResponse(command);
+
+    return sendJson(res, 200, {
+      ok: true,
+      handled: true,
+      command: command.type,
+      response
     });
   }
 
